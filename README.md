@@ -26,7 +26,7 @@ Pre-built packages for `v0.1.8` are available in the [`dist/`](dist/) directory 
 
 After installing, launch **LyricFlow** from your application menu or run `lyricflow` from a terminal (`lyricflow --demo` for the offline demo).
 
-## Install from source (Fedora Workstation)
+## Install from source 
 
 Run these commands from the project directory. The installation creates a virtual environment and installs a launcher and icon for your account. Keep the project directory in the same location after installation.
 
