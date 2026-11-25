@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lyricflow"
+version = "0.1.8"
+description = "Native Linux karaoke lyrics for MPRIS players"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.8,<7",
+    "dbus-fast>=2.24,<3",
+    "httpx>=0.27,<1",
+    "PyYAML>=6,<7",
+    "defusedxml>=0.7,<1",
+    "regex>=2024.11.6",
+    "PyICU>=2.14,<3",
+    "pykakasi>=2.3,<3",
+    "pypinyin>=0.53,<1",
+    "pycantonese>=4,<6",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "build>=1,<2"]
+
+[project.scripts]
+lyricflow = "lyricflow.main:main"
+lyricflow-mock-player = "lyricflow.mpris.mock:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"lyricflow.ui" = ["*.qml", "*.svg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["integration: uses a local GUI or D-Bus session"]

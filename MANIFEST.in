@@ -1,0 +1,3 @@
+include README.md install.sh run.sh
+recursive-include packaging *.desktop
+recursive-include tests *.py

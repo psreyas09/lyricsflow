@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=LyricFlow
+Comment=Live karaoke lyrics for your music
+Exec=lyricflow
+Icon=io.github.lyricflow.LyricFlow
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=karaoke;lyrics;music;mpris;
+StartupNotify=true
