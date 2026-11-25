@@ -17,7 +17,8 @@ QSettings = QtCore.QSettings
 QUrl = QtCore.QUrl
 
 from .demo import DEMO_ALBUM, DEMO_ARTIST, DEMO_DURATION, DEMO_TITLE, demo_lyrics
-from .languages.romanizer import SCRIPT, apply_romanization, correction_key
+from .languages.reading_worker import prepare_readings
+from .languages.romanizer import SCRIPT, correction_key
 from .lyrics.models import Lyrics, Timeline
 from .lyrics.parsers import MAX_BYTES, import_file
 from .lyrics.providers import Amll, BetterLyrics, LrcLib, lyrics_language, provider_urls
@@ -25,6 +26,7 @@ from .mpris.clock import PlaybackClock
 from .mpris.player import PREFIX, Mpris, Track, metadata, same_track
 from .storage import LyricsManager, Store, restore, xdg
 from .ui.artwork import Cover, CoverArchive, TARGET_EDGE, load_artwork, youtube_music_cover_url
+from .ui.lyric_model import LyricModel
 
 from .ui.spectrum import Spectrum
 
@@ -192,8 +194,8 @@ class Worker:
                 if cached:
                     display = restore(cached)
                 else:
-                    display = await asyncio.to_thread(
-                        apply_romanization, lyrics, settings["language"], settings["style"],
+                    display = await prepare_readings(
+                        lyrics, settings["language"], settings["style"],
                         settings["diacritics"], corrections,
                     )
                     self.store.put("romanized", fingerprint, asdict(display))
@@ -271,6 +273,7 @@ class Controller(QObject):
     searchChanged = Signal()
     noticeChanged = Signal()
     frameChanged = Signal()
+    progressChanged = Signal()
     focusChanged = Signal()
     jump = Signal()
 
@@ -292,11 +295,12 @@ class Controller(QObject):
         self.can_seek = False
         self.clock = PlaybackClock()
         self.position = self.lyric_position = 0.0
+        self.progress_position = 0.0
         self.focus = -1
         self.active = []
         self.gap = ()
         self.offset = 0
-        self.rows = []
+        self._lyric_model = LyricModel(self)
         self.timeline = Timeline(Lyrics((), ""))
         self.document = None
         self.message = ""
@@ -333,7 +337,7 @@ class Controller(QObject):
         same_playing_track = same_track(self.track, track)
         changed = track.key != self.lyric_track.key
         # Keep the lyric document and its storage key together until the song changes.
-        if (changed and self.rows and service == self.service and same_playing_track
+        if (changed and self.hasLyrics and service == self.service and same_playing_track
                 and same_track(self.lyric_track, track)):
             changed = False
         switched = service != self.service or track.path != self.track.path
@@ -363,7 +367,7 @@ class Controller(QObject):
         if changed:
             self.lyric_track = track
             self.document = None
-            self.rows = []
+            self._lyric_model.set_lines(())
             self.offset = 0
             self.timeline = Timeline(Lyrics((), ""))
             self.candidates, self.results = [], []
@@ -390,9 +394,7 @@ class Controller(QObject):
             return
         self.document, self.message, self.offset = lyrics, message, offset
         self.timeline = Timeline(lyrics or Lyrics((), ""))
-        self.rows = [asdict(line) for line in lyrics.lines] if lyrics else []
-        for row in self.rows:
-            row["words"] = list(row["words"])
+        self._lyric_model.set_lines(lyrics.lines if lyrics else ())
         self.lyricsChanged.emit()
         self.statusChanged.emit()
         self.tick()
@@ -416,7 +418,10 @@ class Controller(QObject):
         self.noticeChanged.emit()
 
     @Slot()
-    def tick(self):
+    def advance(self):
+        self.tick(update_progress=False)
+
+    def tick(self, update_progress=True):
         position = self.clock.position()
         if self.demo and position >= DEMO_DURATION and self.clock.playing:
             self.clock.reconcile(0, True)
@@ -429,6 +434,10 @@ class Controller(QObject):
         if (self.position, self.lyric_position) != (position, lyric_position):
             self.position, self.lyric_position = position, lyric_position
             self.frameChanged.emit()
+        if position != self.progress_position and (
+                update_progress or position < self.progress_position or position - self.progress_position >= 100):
+            self.progress_position = position
+            self.progressChanged.emit()
         if (focus, active, gap) != (self.focus, self.active, self.gap):
             self.focus, self.active, self.gap = focus, active, gap
             self.focusChanged.emit()
@@ -456,6 +465,7 @@ class Controller(QObject):
         if self.demo:
             if action == "PlayPause":
                 self.clock.state(not self.clock.playing, 1, DEMO_DURATION)
+                self.tick()
                 self.statusChanged.emit()
             if action in {"Next", "Previous"}:
                 self.seek(0)
@@ -572,9 +582,13 @@ class Controller(QObject):
                 "duration": self.track.duration or 0, "art": cover.url,
                 "artPalette": list(cover.palette), "artEdge": cover.edge}
 
-    @Property("QVariantList", notify=lyricsChanged)
-    def lines(self):
-        return self.rows
+    @Property(QObject, constant=True)
+    def lyricModel(self):
+        return self._lyric_model
+
+    @Property(bool, notify=lyricsChanged)
+    def hasLyrics(self):
+        return bool(self.document and self.document.lines)
 
     @Property("QVariantList", notify=searchChanged)
     def matches(self):
@@ -624,9 +638,9 @@ class Controller(QObject):
     def seekable(self):
         return self.can_seek
 
-    @Property(float, notify=frameChanged)
+    @Property(float, notify=progressChanged)
     def elapsed(self):
-        return self.position
+        return self.progress_position
 
     @Property(float, notify=frameChanged)
     def lyricTime(self):

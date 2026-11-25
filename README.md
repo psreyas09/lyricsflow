@@ -9,19 +9,19 @@ Pre-built packages for `v0.1.8` are available in the [`dist/`](dist/) directory 
 - **Fedora / RHEL / openSUSE (`.rpm`)**
 
   ```bash
-  sudo dnf install ./dist/lyricflow-0.1.8-2.noarch.rpm
+  sudo dnf install ./dist/lyricflow-0.1.8-3.noarch.rpm
   ```
 
 - **Debian / Ubuntu / Linux Mint / Pop!_OS (`.deb`)**
 
   ```bash
-  sudo apt install ./dist/lyricflow_0.1.8-2_all.deb
+  sudo apt install ./dist/lyricflow_0.1.8-3_all.deb
   ```
 
 - **Arch Linux / Manjaro / EndeavourOS (`.pkg.tar.zst`)**
 
   ```bash
-  sudo pacman -U ./dist/lyricflow-0.1.8-2-any.pkg.tar.zst
+  sudo pacman -U ./dist/lyricflow-0.1.8-3-any.pkg.tar.zst
   ```
 
 After installing, launch **LyricFlow** from your application menu or run `lyricflow` from a terminal (`lyricflow --demo` for the offline demo).

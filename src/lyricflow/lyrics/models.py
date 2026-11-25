@@ -2,7 +2,7 @@ from bisect import bisect_right
 from dataclasses import dataclass
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Word:
     original: str
     start_ms: int
@@ -10,7 +10,7 @@ class Word:
     romanized: str = ""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Line:
     original: str
     start_ms: int | None = None

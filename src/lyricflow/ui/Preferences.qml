@@ -163,7 +163,7 @@ Dialog {
                 wrapMode: Text.Wrap
                 text: "Readings depend on context. Arabic and Hebrew may omit short vowels. English display is available when lyrics include a translation."
             }
-            Button { text: "Edit track romanization"; enabled: app.lines.length > 0; onClicked: panel.correctionAction() }
+            Button { text: "Edit track romanization"; enabled: app.hasLyrics; onClicked: panel.correctionAction() }
             Flow {
                 Layout.fillWidth: true
                 spacing: 9

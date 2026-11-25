@@ -9,14 +9,23 @@ Item {
     property real radius: 16
     property int front: 0
     readonly property bool software: GraphicsInfo.api === GraphicsInfo.Software
-    readonly property int decodeSize: Math.min(1536, Math.max(640, Math.ceil(width * Screen.devicePixelRatio)))
+    // Reuse the same decode size across small window resizes.
+    readonly property int decodeSize: Math.min(1536, 32 * Math.max(1, Math.ceil(width * Screen.devicePixelRatio / 32)))
     readonly property bool useMask: radius > 0 && !software
 
     function setImage() {
+        if (!source.toString()) {
+            first.source = ""
+            second.source = ""
+            return
+        }
+        const current = front === 0 ? first : second
+        if (String(current.source) === String(source) && current.status === Image.Ready)
+            return
         const nextIndex = 1 - front
         const next = nextIndex === 0 ? first : second
         next.source = source
-        if (!source.toString() || next.status === Image.Ready)
+        if (next.status === Image.Ready || next.status === Image.Error)
             front = nextIndex
     }
     onSourceChanged: setImage()
@@ -50,12 +59,14 @@ Item {
             anchors.fill: parent
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
+            cache: false
             sourceSize.width: artwork.decodeSize
             sourceSize.height: artwork.decodeSize
             smooth: true
             mipmap: !artwork.software
             opacity: artwork.front === 0 ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: artwork.motion ? 380 : 0 } }
+            onOpacityChanged: if (opacity === 0 && String(source) !== String(artwork.source)) source = ""
             onStatusChanged: if (String(source) === String(artwork.source) &&
                                  (status === Image.Ready || status === Image.Error)) artwork.front = 0
         }
@@ -64,12 +75,14 @@ Item {
             anchors.fill: parent
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
+            cache: false
             sourceSize.width: artwork.decodeSize
             sourceSize.height: artwork.decodeSize
             smooth: true
             mipmap: !artwork.software
             opacity: artwork.front === 1 ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: artwork.motion ? 380 : 0 } }
+            onOpacityChanged: if (opacity === 0 && String(source) !== String(artwork.source)) source = ""
             onStatusChanged: if (String(source) === String(artwork.source) &&
                                  (status === Image.Ready || status === Image.Error)) artwork.front = 1
         }

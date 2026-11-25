@@ -106,21 +106,28 @@ class KaraokeText(QQuickPaintedItem):
         joined = "".join(parts)
         if joined.strip() != text.strip():
             return []
-        chars = list(regex.finditer(r"\X", joined))
+        clusters = iter(regex.finditer(r"\X", joined))
+        cluster = next(clusters, None)
         fragments = []
         start = 0
         removed = len(joined) - len(joined.lstrip()) if not text[:1].isspace() else 0
+        previous = removed
+        cursor = 0
+        text_length = utf16_length(text)
         for token, body in zip(self.spans, parts):
             end = start + len(body)
             # Adjacent graphemes with compatible visual direction form one clip
             # so a word fills continuously even when shaped as a ligature.
             groups = []
-            for cluster in chars:
-                if not start <= cluster.start() < end or cluster.start() < removed:
+            while cluster is not None and cluster.start() < end:
+                char_start = cluster.start()
+                cluster = next(clusters, None)
+                if char_start < removed:
                     continue
-                cursor = utf16_length(joined[removed:cluster.start()])
+                cursor += utf16_length(joined[previous:char_start])
+                previous = char_start
                 line = self.layout.lineForTextPosition(cursor)
-                if not line.isValid() or cursor >= utf16_length(text):
+                if not line.isValid() or cursor >= text_length:
                     continue
                 lead, _ = line.cursorToX(cursor, QTextLine.Edge.Leading)
                 tail, _ = line.cursorToX(cursor, QTextLine.Edge.Trailing)
@@ -145,11 +152,15 @@ class KaraokeText(QQuickPaintedItem):
         done, current = QPainterPath(), QPainterPath()
         underline = QPainterPath()
         underline_height = max(2.0, self.pixelSize * .055)
+        position = self.position
+        progress_underline = self.progressUnderline
         done.setFillRule(Qt.FillRule.WindingFill)
         current.setFillRule(Qt.FillRule.WindingFill)
         for word, groups in self.fragments:
-            fill = word_fill(word, self.position)
-            path = done if word.end_ms is not None and self.position >= word.end_ms else current
+            fill = word_fill(word, position)
+            if not fill:
+                continue
+            path = done if word.end_ms is not None and position >= word.end_ms else current
             remaining = fill * sum(abs(b - a) for a, b, _, _ in groups)
             for start, end, y, height in groups:
                 extent = min(remaining, abs(end - start))
@@ -157,7 +168,7 @@ class KaraokeText(QQuickPaintedItem):
                     break
                 left = start if end > start else start - extent
                 path.addRect(QRectF(left, y, extent, height))
-                if self.progressUnderline and path is current:
+                if progress_underline and path is current:
                     underline.addRect(QRectF(left, y + height - underline_height, extent, underline_height))
                 remaining -= extent
         dimmed = QColor.fromRgbF(

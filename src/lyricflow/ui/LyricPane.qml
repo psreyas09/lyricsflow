@@ -16,6 +16,8 @@ Item {
     property bool interactive: true
     property bool compact: false
 
+    onVisibleChanged: if (visible) Qt.callLater(function() { pane.recenter(false) })
+
     function recenter(animate) {
         if (app.currentLine < 0 || view.count === 0 || view.moving || view.height <= 0)
             return
@@ -102,16 +104,20 @@ Item {
         clip: true
         topMargin: pane.compact ? 0 : Math.round(height * 0.32)
         bottomMargin: pane.compact ? height * 0.65 : Math.round(height * 0.56)
-        cacheBuffer: Math.max(0, height)
+        cacheBuffer: Math.max(0, Math.round(height / 4))
         interactive: pane.interactive
         boundsBehavior: Flickable.StopAtBounds
         onMovementStarted: scroll.stop()
         onHeightChanged: Qt.callLater(function() { pane.recenter(false) })
-        model: app.lines
+        model: pane.visible ? app.lyricModel : null
         ScrollBar.vertical: ScrollBar { policy: pane.compact ? ScrollBar.AlwaysOff : ScrollBar.AsNeeded }
         delegate: Item {
             id: lyric
-            required property var modelData
+            required property string original
+            required property string romanized
+            required property string translation
+            required property var startMs
+            required property var words
             required property int index
             property bool active: app.activeLines.indexOf(index) !== -1
             property bool plain: app.quality === "Plain lyrics"
@@ -123,12 +129,12 @@ Item {
             property bool showRomanized: pane.mode === "Romanized" || pane.mode === "Both"
                                           || pane.mode === "Romanized + English"
             property bool showTranslation: pane.mode === "English" || pane.mode === "Romanized + English"
-            property bool malayalamPair: /[\u0d00-\u0d7f]/.test(modelData.original)
-            property bool romanDiffers: modelData.romanized !== modelData.original
+            property bool malayalamPair: /[\u0d00-\u0d7f]/.test(original)
+            property bool romanDiffers: romanized !== original
             property bool primaryRoman: showRomanized && !showOriginal
-            property string primary: showOriginal ? modelData.original :
-                (primaryRoman ? (modelData.romanized || modelData.original) :
-                (modelData.translation || "—"))
+            property string primary: showOriginal ? original :
+                (primaryRoman ? (romanized || original) :
+                (translation || "—"))
             width: view.width
             height: content.implicitHeight + (pane.compact ? 15 : 24)
             Column {
@@ -150,14 +156,14 @@ Item {
                     width: parent.width
                     height: measured
                     content: lyric.primary
-                    spans: lyric.showOriginal || lyric.primaryRoman ? lyric.modelData.words : []
+                    spans: lyric.showOriginal || lyric.primaryRoman ? lyric.words : []
                     variant: lyric.primaryRoman ? "romanized" : "original"
                     alignment: app.preferences.alignment
                     family: app.preferences.font
                     pixelSize: pane.fontSize
                     malayalam: lyric.malayalamPair && (lyric.showOriginal || lyric.primaryRoman)
                     active: lyric.active && !lyric.plain
-                    position: lyric.active && lyric.modelData.words.length ? app.lyricTime : 0
+                    position: visible && lyric.active && lyric.words.length ? app.lyricTime : 0
                     base: lyric.textColor
                     accent: pane.accent
                     progressUnderline: pane.progressUnderline
@@ -166,24 +172,24 @@ Item {
                     visible: lyric.showOriginal && lyric.showRomanized && lyric.romanDiffers
                     width: parent.width
                     height: visible ? measured : 0
-                    content: visible ? lyric.modelData.romanized : ""
-                    spans: visible ? lyric.modelData.words : []
+                    content: visible ? lyric.romanized : ""
+                    spans: visible ? lyric.words : []
                     variant: "romanized"
                     alignment: app.preferences.alignment
                     family: app.preferences.font
                     pixelSize: lyric.malayalamPair ? pane.fontSize : Math.round(pane.fontSize * 0.62)
                     malayalam: lyric.malayalamPair
                     active: visible && lyric.active && !lyric.plain
-                    position: lyric.active && lyric.modelData.words.length ? app.lyricTime : 0
+                    position: visible && lyric.active && lyric.words.length ? app.lyricTime : 0
                     base: lyric.textColor
                     accent: pane.accent
                     progressUnderline: pane.progressUnderline
                 }
                 KaraokeText {
-                    visible: lyric.showTranslation && lyric.primaryRoman && !!lyric.modelData.translation
+                    visible: lyric.showTranslation && lyric.primaryRoman && !!lyric.translation
                     width: parent.width
                     height: visible ? measured : 0
-                    content: visible ? lyric.modelData.translation : ""
+                    content: visible ? lyric.translation : ""
                     alignment: app.preferences.alignment
                     family: app.preferences.font
                     pixelSize: Math.round(pane.fontSize * 0.62)
@@ -196,8 +202,8 @@ Item {
             Accessible.name: primary
             TapHandler {
                 enabled: pane.interactive && app.seekable &&
-                         lyric.modelData.start_ms !== null && lyric.modelData.start_ms !== undefined
-                onTapped: app.seekLine(lyric.modelData.start_ms)
+                         lyric.startMs !== null && lyric.startMs !== undefined
+                onTapped: app.seekLine(lyric.startMs)
             }
         }
     }

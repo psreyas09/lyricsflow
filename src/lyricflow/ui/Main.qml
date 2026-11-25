@@ -153,9 +153,19 @@ ApplicationWindow {
     Shortcut { sequence: "F11"; onActivated: window.mode(window.immersive ? "Main" : "Full screen") }
     Shortcut { sequence: "Ctrl+,"; onActivated: preferences.open() }
     Shortcut { sequence: "Ctrl+F"; enabled: !!app.song.title; onActivated: search.open() }
+    readonly property bool playbackVisible: visible && visibility !== Window.Minimized && app.playing
+    readonly property bool animateLyrics: playbackVisible && lyrics.visible
+                                          && (app.quality === "Word sync"
+                                              || (app.preferences.motion && app.lyricGap.length === 2))
     FrameAnimation {
-        running: window.visible && window.visibility !== Window.Minimized && app.playing
-        onTriggered: app.tick()
+        running: window.animateLyrics
+        onTriggered: app.advance()
+    }
+    Timer {
+        interval: lyrics.visible && app.quality === "Line sync" ? 32 : 100
+        repeat: true
+        running: window.playbackVisible && !window.animateLyrics
+        onTriggered: app.advance()
     }
 
     AmbientGradient {
@@ -169,13 +179,15 @@ ApplicationWindow {
         softness: app.preferences.blur
     }
 
-    AudioVisualizer {
+    Loader {
         anchors.fill: parent
-        visible: window.audioEffect
-        effect: window.backgroundEffect
-        levels: app.spectrum.levels
-        tint: app.song.artPalette[0] || window.accent
-        intensity: window.backgroundIntensity
+        active: window.audioActive
+        sourceComponent: AudioVisualizer {
+            effect: window.backgroundEffect
+            levels: app.spectrum.levels
+            tint: app.song.artPalette[0] || window.accent
+            intensity: window.backgroundIntensity
+        }
     }
 
     ColumnLayout {
@@ -363,7 +375,7 @@ ApplicationWindow {
                 anchors.left: songPanel.visible && !window.detailsOnly ? songPanel.right : parent.left
                 anchors.leftMargin: songPanel.visible && !window.detailsOnly ? 42 : 0
                 anchors.right: parent.right
-                visible: !window.detailsOnly && app.lines.length > 0
+                visible: !window.detailsOnly && app.hasLyrics
                 ink: window.ink
                 dim: window.dim
                 accent: window.lyricAccent
@@ -552,7 +564,7 @@ ApplicationWindow {
         standardButtons: Dialog.Save | Dialog.Cancel
         onOpened: {
             editLine.currentIndex = Math.max(0, app.currentLine)
-            editText.text = app.lines[editLine.currentIndex]?.romanized || ""
+            editText.text = app.lyricModel.reading(editLine.currentIndex)
         }
         onAccepted: app.edit(editLine.currentIndex, editText.text)
         ColumnLayout {
@@ -561,8 +573,8 @@ ApplicationWindow {
                 id: editLine
                 Layout.fillWidth: true
                 textRole: "original"
-                model: app.lines
-                onActivated: editText.text = app.lines[currentIndex]?.romanized || ""
+                model: app.lyricModel
+                onActivated: editText.text = app.lyricModel.reading(currentIndex)
             }
             TextField { id: editText; Layout.fillWidth: true; selectByMouse: true }
             Label {
